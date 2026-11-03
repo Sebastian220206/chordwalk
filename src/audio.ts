@@ -181,11 +181,59 @@ class SoundEngine {
   }
 
   /**
-   * Plays a pitch class node tap (MIDI 60 + pitch class).
+   * Plays a pitch class node tap (MIDI 60 + pitch class) with a warm marimba/bubble pop transient.
    */
   public playTap(pc: number): void {
     const midi = 60 + ((pc % 12 + 12) % 12);
     this.playMidi(midi, { duration: 0.7, gain: 0.32 });
+    this.playPopTransient();
+  }
+
+  /**
+   * Short physical bubble/marimba pop click for tactile game-feel.
+   */
+  private playPopTransient(): void {
+    if (this._isMuted) return;
+    this.ensureContext().then((ctx) => {
+      if (!ctx || !this.filter) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.exponentialRampToValueAtTime(1100, now + 0.04);
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+
+      osc.connect(gain);
+      gain.connect(this.filter);
+
+      osc.start(now);
+      osc.stop(now + 0.05);
+
+      setTimeout(() => {
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch {
+          // ignore
+        }
+      }, 70);
+    });
+  }
+
+  /**
+   * Plays a star achievement chime for star #1, #2, or #3.
+   */
+  public playStarSound(starIndex: number): void {
+    if (this._isMuted) return;
+    const pitches = [72, 76, 84]; // C5, E5, C6
+    const midi = pitches[Math.min(Math.max(starIndex - 1, 0), pitches.length - 1)];
+    this.playMidi(midi, { duration: 0.8, gain: 0.35 });
+    // Add bright high overtone
+    this.playMidi(midi + 12, { duration: 0.5, gain: 0.18 });
   }
 
   /**

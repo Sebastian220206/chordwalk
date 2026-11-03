@@ -25,6 +25,12 @@ import {
   voice,
   GridNode,
 } from './theory';
+import {
+  spawnNodeSparkles,
+  spawnPraiseCallout,
+  spawnVictoryConfetti,
+  tryVibrate,
+} from './vfx';
 
 export interface GameUIHandlers {
   onPromptUpdate: (prompt: PromptData) => void;
@@ -268,6 +274,11 @@ export class GameController {
   private handleNodeTap(node: GridNode): void {
     // Play single node tap sound: MIDI 60 + pitch class
     audio.playTap(node.pc);
+    const coords = this.board.getNodeClientCoords(node.id);
+    if (coords) {
+      spawnNodeSparkles(coords.x, coords.y, node.isBlack ? '#f59e0b' : '#38bdf8');
+    }
+    tryVibrate(8);
 
     const round = this.currentRound;
     if (!round) return;
@@ -290,6 +301,7 @@ export class GameController {
     if (actualSemitones === targetSemitones) {
       // Success!
       this.isProcessing = true;
+      spawnPraiseCallout('SWEET!', 'major');
       audio.playIntervalMelodicAndHarmonic(
         60 + round.rootPc,
         60 + round.rootPc + round.semitones
@@ -405,6 +417,14 @@ export class GameController {
     const voicedChord = voice(selectedPcs, bassPc);
     audio.playVoicedChord(voicedChord, 60, 1.4);
 
+    const qualityPraise: Record<ChordQuality, string> = {
+      major: 'SWEET!',
+      minor: 'HARMONIC!',
+      diminished: 'RESONANT!',
+      augmented: 'DIVINE!',
+    };
+    spawnPraiseCallout(qualityPraise[round.quality] || 'CHORD CRUSH!', round.quality);
+
     const chordName = `${noteName(round.rootPc)} ${round.quality}`;
     this.ui.onFeedback(`Awesome! ${chordName} connected.`, 'success');
 
@@ -441,6 +461,7 @@ export class GameController {
     if (chosen === round.quality) {
       // Correct!
       this.isProcessing = true;
+      spawnPraiseCallout('CRUSHED IT!', round.quality);
       this.ui.onFeedback(`Correct! That was ${round.quality}.`, 'success');
 
       // Light up answer on board
@@ -470,6 +491,7 @@ export class GameController {
     if (chosenSemitones === round.semitones) {
       // Correct!
       this.isProcessing = true;
+      spawnPraiseCallout('PERFECT!', 'major');
       const info = intervalInfo(round.semitones);
       this.ui.onFeedback(`Correct! It was a ${info.label}.`, 'success');
 
@@ -518,6 +540,7 @@ export class GameController {
 
   private finishLevel(): void {
     audio.playSuccessCue();
+    spawnVictoryConfetti();
     const { stars, isNewBest } = saveLevelResult(this.level.id, this.mistakes);
 
     this.ui.onLevelComplete({

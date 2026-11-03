@@ -31,6 +31,7 @@ export class TonnetzBoard {
 
   private container: HTMLElement;
   private svg!: SVGSVGElement;
+  private defs!: SVGDefsElement;
   private trianglesGroup!: SVGGElement;
   private edgesGroup!: SVGGElement;
   private highlightGroup!: SVGGElement;
@@ -191,6 +192,16 @@ export class TonnetzBoard {
     this.updateNodeVisuals();
   }
 
+  public getNodeClientCoords(nodeId: string): { x: number; y: number } | null {
+    const el = this.nodeElements.get(nodeId);
+    if (!el) return null;
+    const rect = el.circle.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }
+
   private render(): void {
     this.container.innerHTML = '';
 
@@ -213,6 +224,11 @@ export class TonnetzBoard {
     this.svg.setAttribute('class', 'tonnetz-board-svg');
     this.svg.setAttribute('role', 'region');
     this.svg.setAttribute('aria-label', 'Tonnetz music theory lattice board');
+
+    // Defs for 3D gradients and filters
+    this.defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    this.renderDefs();
+    this.svg.appendChild(this.defs);
 
     // Groups in stacking order
     this.trianglesGroup = document.createElementNS(
@@ -249,6 +265,45 @@ export class TonnetzBoard {
     this.renderNodes();
 
     this.container.appendChild(this.svg);
+  }
+
+  private renderDefs(): void {
+    this.defs.innerHTML = `
+      <!-- Natural Pearl Gem Gradient -->
+      <linearGradient id="grad-natural-gem" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" />
+        <stop offset="45%" stop-color="#fdfbf7" />
+        <stop offset="100%" stop-color="#eadecb" />
+      </linearGradient>
+
+      <!-- Accidental Obsidian Gem Gradient -->
+      <linearGradient id="grad-accidental-gem" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#48423c" />
+        <stop offset="50%" stop-color="#2a2624" />
+        <stop offset="100%" stop-color="#141211" />
+      </linearGradient>
+
+      <!-- Selected Gem Gradient (Honey Gold) -->
+      <linearGradient id="grad-selected-gem" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#fef08a" />
+        <stop offset="35%" stop-color="#fbbf24" />
+        <stop offset="100%" stop-color="#d97706" />
+      </linearGradient>
+
+      <!-- Drop shadow for 3D tactile nodes -->
+      <filter id="candy-drop-shadow" x="-20%" y="-20%" width="140%" height="150%">
+        <feDropShadow dx="0" dy="3.5" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.18" />
+      </filter>
+
+      <!-- Glow for completed shapes -->
+      <filter id="shape-glow" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="5" result="coloredBlur" />
+        <feMerge>
+          <feMergeNode in="coloredBlur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    `;
   }
 
   private renderTriangles(): void {
@@ -323,10 +378,20 @@ export class TonnetzBoard {
       );
       ringCircle.setAttribute('cx', String(node.screenX));
       ringCircle.setAttribute('cy', String(node.screenY));
-      ringCircle.setAttribute('r', '26');
+      ringCircle.setAttribute('r', '27');
       ringCircle.setAttribute('class', 'node-root-ring');
 
-      // Visual circle (22px radius = 44px diameter)
+      // 3D bottom bevel/lip for tactile physical thickness
+      const lipCircle = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'circle'
+      );
+      lipCircle.setAttribute('cx', String(node.screenX));
+      lipCircle.setAttribute('cy', String(node.screenY + 2.8));
+      lipCircle.setAttribute('r', '22');
+      lipCircle.setAttribute('class', 'node-lip');
+
+      // Visual circle (21.5px radius = 43px diameter)
       const visualCircle = document.createElementNS(
         'http://www.w3.org/2000/svg',
         'circle'
@@ -336,9 +401,22 @@ export class TonnetzBoard {
       visualCircle.setAttribute('r', '21.5');
       visualCircle.setAttribute('class', 'node-circle');
 
+      // Glossy top specular reflection
+      const specular = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'ellipse'
+      );
+      specular.setAttribute('cx', String(node.screenX));
+      specular.setAttribute('cy', String(node.screenY - 8.5));
+      specular.setAttribute('rx', '11');
+      specular.setAttribute('ry', '4.5');
+      specular.setAttribute('class', 'node-specular');
+
       group.appendChild(hitCircle);
       group.appendChild(ringCircle);
+      group.appendChild(lipCircle);
       group.appendChild(visualCircle);
+      group.appendChild(specular);
 
       // Labels: black keys show dual spellings e.g. C# above, Db below
       if (node.isBlack) {
